@@ -12,6 +12,7 @@ import os
 
 # Streamlit
 import streamlit as st
+import json
 
 
 load_dotenv()
@@ -25,20 +26,19 @@ embeddings = YandexEmbeddings(api_key=API_KEY, folder_id=CATALOG_NAME)
 
 # Подключение векторной БД
 db = Chroma(persist_directory="chroma_db", embedding_function=embeddings)
-top_k = 3
+top_k = 2
 retriever = db.as_retriever(search_kwargs={'k': top_k})
 
 # Определение LLM
 instructions = """
 Представь себе, что ты сотрудник Yandex Cloud. Твоя задача - вежливо и по мере своих сил отвечать на все вопросы собеседника."""
 llm = YandexLLM(api_key=API_KEY, folder_id=CATALOG_NAME,
-                instruction_text=instructions, temperature=0.2,
+                instruction_text=instructions, temperature=0.3,
                 max_tokens=320, model=0)
 
 # Промпт для языковой модели
 document_variable_name = "context"
 rag_template = """
-    Пожалуйста, посмотри на текст ниже и ответь на вопрос, используя информацию из этого текста.
     Текст:
     -----
     {context}
@@ -61,15 +61,47 @@ rag_chain = (
     | StrOutputParser()
 )
 
-# Сборка всех компонентов в единную систему
-# print(rag_chain.invoke("Дай определение рудовоза"))
-
 # Streamlit app
 st.title("RAG YaChatbot")
-st.write("Как я могу вам помочь?")
 
-input_box = st.text_input("User: ")
+# Создаем экземпляр истории сообщений
+message_history = StreamlitChatMessageHistory()
 
-if st.button("Send"):
-    output = rag_chain.invoke(input_box)
-    st.write("Assistant:", output)
+# Создание папки, в которой будут храниться Истории Чатов
+os.makedirs("Chats_history", exist_ok=True)
+
+# Функции для загрузки и сохранения истории сообщений
+def load_message_history():
+    if os.path.exists("Chats_history/message_history.json"):
+        with open("Chats_history/message_history.json", "r", encoding="utf-8") as file:
+            return json.load(file)
+    return []
+
+def save_message_history(messages):
+    with open("Chats_history/message_history.json", "w", encoding="utf-8") as file:
+        json.dump(messages, file, ensure_ascii=False, indent=4)
+
+# Загрузка истории сообщений из файла
+stored_messages = load_message_history()
+message_history.messages = stored_messages
+
+if len(message_history.messages) == 0:
+    message_history.add_message({"type": "assistant", "content": "Здравствуйте! Как я могу вам помочь?"})
+for msg in message_history.messages:
+    st.chat_message(msg["type"]).write(msg["content"])
+
+# Сохранение истории сообщений в файл после каждого обмена
+if prompt := st.chat_input():
+    st.chat_message("human").write(prompt)
+    # Добавляем сообщение пользователя в историю
+    message_history.add_message({"type": "user", "content": prompt})
+    
+    # Получаем ответ ассистента
+    output = rag_chain.invoke(prompt)
+    
+    # Добавляем ответ ассистента в историю
+    st.chat_message("ai").write(output)
+    message_history.add_message({"type": "assistant", "content": output})
+
+    # Сохраняем обновленную историю сообщений в файл
+    save_message_history(message_history.messages)
