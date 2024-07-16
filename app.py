@@ -7,9 +7,12 @@ from langchain_chroma import Chroma
 from yandex_chain.YandexGPT import YandexLLM
 from yandex_chain.YandexGPTEmbeddings import YandexEmbeddings
 from langchain_core.output_parsers import StrOutputParser
-
 from dotenv import load_dotenv
 import os
+
+# Streamlit
+import streamlit as st
+
 
 load_dotenv()
 
@@ -29,7 +32,8 @@ retriever = db.as_retriever(search_kwargs={'k': top_k})
 instructions = """
 Представь себе, что ты сотрудник Yandex Cloud. Твоя задача - вежливо и по мере своих сил отвечать на все вопросы собеседника."""
 llm = YandexLLM(api_key=API_KEY, folder_id=CATALOG_NAME,
-                instruction_text=instructions)
+                instruction_text=instructions, temperature=0.2,
+                max_tokens=320, model=0)
 
 # Промпт для языковой модели
 document_variable_name = "context"
@@ -58,4 +62,14 @@ rag_chain = (
 )
 
 # Сборка всех компонентов в единную систему
-print(rag_chain.invoke("Дай определение рудовоза"))
+# print(rag_chain.invoke("Дай определение рудовоза"))
+
+# Streamlit app
+st.title("RAG YaChatbot")
+st.write("Как я могу вам помочь?")
+
+input_box = st.text_input("User: ")
+
+if st.button("Send"):
+    output = rag_chain.invoke(input_box)
+    st.write("Assistant:", output)
