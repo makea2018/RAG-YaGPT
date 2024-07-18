@@ -39,6 +39,7 @@ llm = YandexLLM(api_key=API_KEY, folder_id=CATALOG_NAME,
 # Промпт для языковой модели
 document_variable_name = "context"
 rag_template = """
+    Пожалуйста, посмотри на текст ниже и ответь на вопрос, используя информацию из этого текста.
     Текст:
     -----
     {context}
